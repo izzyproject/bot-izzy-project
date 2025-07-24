@@ -4,8 +4,8 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # Ambil dari environment (Render)
-BOT_TOKEN = os.getenv("8245152079:AAHX_glLG7k2GuTLzu1hgTDXQAg2DuVUBbM")
-VIRTUSIM_APIKEY = os.getenv("q20QeJ3PjsxAyYCSF6BRNvHI9agX4U")  # ← pastikan ini juga diset di Environment
+BOT_TOKEN = os.getenv("TOKEN")  # ← ini ambil dari nama ENV VAR
+VIRTUSIM_APIKEY = os.getenv("VIRTUSIM_APIKEY")
 
 # Cek token
 if not BOT_TOKEN:
