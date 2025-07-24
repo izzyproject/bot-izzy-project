@@ -1,46 +1,40 @@
 import os
-import logging
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 import requests
 
-BOT_TOKEN = os.getenv("TOKEN")
-VIRTUSIM_APIKEY = os.getenv("VIRTUSIM_APIKEY")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+VIRTUSIM_API_KEY = os.environ.get("VIRTUSIM_API_KEY")
 
-# Logging
-logging.basicConfig(level=logging.INFO)
-
-# Command /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Halo! Kirim nomor untuk beli kuota.")
+    await update.message.reply_text("Selamat datang! Ketik /order untuk melakukan pembelian.")
 
-# Command /order contoh
 async def order(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        return await update.message.reply_text("Contoh: /order 6281234567890")
+    phone_number = "6281234567890"  # Ganti sesuai kebutuhan
+    product_code = "XLSAKTI10"      # Contoh kode produk
 
-    nomor = context.args[0]
-    try:
-        response = requests.post("https://api.virtusim.com/order", json={
-            "phone": nomor
-        }, headers={
-            "Authorization": f"Bearer {VIRTUSIM_APIKEY}"
-        })
+    url = "https://api.virtusim.com/api/v1/order"
+    headers = {
+        "Authorization": f"Bearer {VIRTUSIM_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "buyer_sku_code": product_code,
+        "customer_no": phone_number,
+        "ref_id": "order12345"
+    }
 
-        data = response.json()
-        if data.get("success"):
-            await update.message.reply_text(f"✅ Order sukses: {data}")
-        else:
-            await update.message.reply_text(f"❌ Gagal: {data.get('message')}")
-    except Exception as e:
-        await update.message.reply_text(f"Error: {e}")
+    response = requests.post(url, json=payload, headers=headers)
+    result = response.json()
 
-# Main app
+    if result.get("status") == True:
+        await update.message.reply_text(f"Sukses! Pesanan: {result['message']}")
+    else:
+        await update.message.reply_text(f"Gagal! {result.get('message', 'Terjadi kesalahan.')}")
+
+app = ApplicationBuilder().token(BOT_TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("order", order))
+
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("order", order))
-
-    print("Bot is running...")
     app.run_polling()
