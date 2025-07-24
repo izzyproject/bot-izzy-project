@@ -1,62 +1,81 @@
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
-import requests
 import os
+import requests
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# Step percakapan
-CHOOSE_APP, GET_PHONE = range(2)
+# Ambil dari environment (Render)
+BOT_TOKEN = os.getenv("TOKEN")
+VIRTUSIM_APIKEY = os.getenv("VIRTUSIM_APIKEY")  # ← pastikan ini juga diset di Environment
 
-# API Key Virtusim dari environment
-API_KEY = os.getenv("q20QeJ3PjsxAyYCSF6BRNvHI9agX4U")
+# Cek token
+if not BOT_TOKEN:
+    raise ValueError("❌ TOKEN tidak ditemukan!")
+if not VIRTUSIM_APIKEY:
+    raise ValueError("❌ VIRTUSIM_APIKEY tidak ditemukan!")
 
-# Start command
+# Init app
+app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+
+# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [['WhatsApp', 'Instagram'], ['Gmail', 'Facebook']]
-    await update.message.reply_text(
-        "Selamat datang! Pilih aplikasi OTP yang ingin kamu beli:",
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-    )
-    return CHOOSE_APP
+    await update.message.reply_text("Halo! Selamat datang di Bot Virtusim.\nKetik /produk untuk melihat daftar.")
 
-# Pilih aplikasi
-async def choose_app(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['app'] = update.message.text
-    await update.message.reply_text("Masukkan nomor HP tujuan:")
-    return GET_PHONE
 
-# Proses pembelian
-async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    phone = update.message.text
-    app = context.user_data['app'].lower().replace("+", "").replace(" ", "")
-    url = f"https://virtusim.com/api/order?api_key={API_KEY}&nomor={phone}&produk={app}"
+# /produk → ambil produk dari API Virtusim
+async def produk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    url = f"https://api.virtusim.com/api/product?api_key={VIRTUSIM_APIKEY}"
+    try:
+        response = requests.get(url)
+        data = response.json()
+        if data["status"] == True:
+            msg = "📦 *Daftar Produk:*\n"
+            for item in data["data"][:10]:  # tampilkan 10 produk pertama
+                msg += f"\n🔹 ID: `{item['id']}`\n📱 {item['name']}\n💰 {item['price']} {item['currency']}\n"
+            await update.message.reply_text(msg, parse_mode="Markdown")
+        else:
+            await update.message.reply_text("Gagal mengambil produk.")
+    except Exception as e:
+        await update.message.reply_text(f"⚠️ Error ambil produk: {e}")
+
+
+# /order <id_produk>
+async def order(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    args = context.args
+    if len(args) != 1:
+        await update.message.reply_text("⚠️ Format salah!\nContoh: /order 421")
+        return
+
+    product_id = args[0]
+    phone_number = "6281234567890"  # Ganti ini nanti pakai input user
+
+    url = f"https://api.virtusim.com/api/order"
+    payload = {
+        "api_key": VIRTUSIM_APIKEY,
+        "product_id": product_id,
+        "phone_number": phone_number
+    }
 
     try:
-        response = requests.get(url).json()
-        if response.get("status") == "success":
-            await update.message.reply_text(f"✅ Order berhasil!\nNomor: {phone}\nAplikasi: {app}")
+        response = requests.post(url, json=payload)
+        data = response.json()
+        if data.get("status") == True:
+            detail = data.get("data", {})
+            await update.message.reply_text(
+                f"✅ Order Berhasil!\n\n📱 Produk: {detail.get('product_name')}\n📞 Nomor: {detail.get('phone_number')}\n🆔 Order ID: {detail.get('order_id')}"
+            )
         else:
-            await update.message.reply_text(f"❌ Gagal order. Info: {response}")
+            await update.message.reply_text(f"❌ Gagal Order: {data.get('message')}")
     except Exception as e:
-        await update.message.reply_text(f"⚠️ Error: {e}")
+        await update.message.reply_text(f"⚠️ Error order: {e}")
 
-    return ConversationHandler.END
 
-# Main function
-def main():
-    token = os.getenv("8245152079:AAHX_glLG7k2GuTLzu1hgTDXQAg2DuVUBbM")
-    app = ApplicationBuilder().token(token).build()
+# Handler
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("produk", produk))
+app.add_handler(CommandHandler("order", order))
 
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            CHOOSE_APP: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_app)],
-            GET_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone)],
-        },
-        fallbacks=[]
-    )
-
-    app.add_handler(conv_handler)
+# Run
+if __name__ == '__main__':
+    print("🤖 Bot Virtusim aktif...")
     app.run_polling()
-
-if __name__ == "__main__":
-    main()
