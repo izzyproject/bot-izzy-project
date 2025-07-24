@@ -1,40 +1,36 @@
 import os
-from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 import requests
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from dotenv import load_dotenv
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-VIRTUSIM_API_KEY = os.environ.get("VIRTUSIM_API_KEY")
+load_dotenv()
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+API_KEY = os.getenv("VIRTUSIM_API_KEY")
+API_URL = "https://virtusim.com/api/json.php"
+
+if not BOT_TOKEN:
+    raise ValueError("❌ BOT_TOKEN tidak ditemukan di .env")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Selamat datang! Ketik /order untuk melakukan pembelian.")
+    await update.message.reply_text("Halo! Bot Virtusim siap 🚀\nKetik /order untuk mulai.")
 
 async def order(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    phone_number = "6281234567890"  # Ganti sesuai kebutuhan
-    product_code = "XLSAKTI10"      # Contoh kode produk
-
-    url = "https://api.virtusim.com/api/v1/order"
-    headers = {
-        "Authorization": f"Bearer {VIRTUSIM_API_KEY}",
-        "Content-Type": "application/json"
-    }
     payload = {
-        "buyer_sku_code": product_code,
-        "customer_no": phone_number,
-        "ref_id": "order12345"
+        "api_key": API_KEY,
+        "action": "order",
+        "service": "26",        # ID layanan
+        "operator": "indosat"   # atau telkomsel, axis, dll
     }
-
-    response = requests.post(url, json=payload, headers=headers)
-    result = response.json()
-
-    if result.get("status") == True:
-        await update.message.reply_text(f"Sukses! Pesanan: {result['message']}")
-    else:
-        await update.message.reply_text(f"Gagal! {result.get('message', 'Terjadi kesalahan.')}")
+    response = requests.post(API_URL, data=payload)
+    result = response.text
+    await update.message.reply_text(f"📦 Order response:\n{result}")
 
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("order", order))
 
 if __name__ == "__main__":
+    print("Bot running...")
     app.run_polling()
